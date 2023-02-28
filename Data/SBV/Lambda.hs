@@ -12,7 +12,6 @@
 
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
@@ -24,67 +23,60 @@ module Data.SBV.Lambda (
         ) where
 
 import Data.SBV.Core.Data
+import Data.SBV.Core.Model
 import Data.SBV.Core.Symbolic
-import Data.SBV.Provers.Prover
 
-import qualified Data.SBV.Control.Utils as Control
-
--- | Extract an SMTLib compliand lambda string
--- >>> lambda (2 :: SInteger)
--- WHAT
--- >>> lambda (\x -> x+1::SInteger)
--- WHAT
--- >>> lambda (\x y -> x+y*2 :: SInteger)
--- WHAT
--- >>> lambda (\x (y, z) -> x+y*2+z :: SInteger)
--- WHAT
--- >>> lambda (\x (y, z) k -> x+y*2+z + k :: SInteger)
--- WHAT
-lambda :: Lambda Symbolic a => a -> IO String
-lambda f = fst <$> runSymbolic (Lambda cfg) (mkLambda f)
-  where cfg = defaultSMTCfg { smtLibVersion = SMTLib2 }
+import Data.Proxy
 
 -- | Values that we can turn into a lambda abstraction
-class MonadSymbolic m => Lambda m a where
-  mkLambda :: a -> m String
+class Lambda a where
+   -- | Turn a symbolic computation to an encapsulated lambda
+   -- >>> lambda (2 :: SInteger)
+   -- WHAT
+   -- >>> lambda (\x -> x+1::SInteger)
+   -- WHAT
+   -- >>> lambda (\x y -> x+y*2 :: SInteger)
+   -- WHAT
+   -- >>> lambda (\x (y, z) -> x+y*2+z :: SInteger)
+   -- WHAT
+   -- >>> lambda (\x (y, z) k -> x+y*2+z + k :: SInteger)
+   -- WHAT
+  lambda :: a -> IO String
 
--- | Turn a symbolic computation to an encapsulated lambda
-instance MonadSymbolic m => Lambda m (SymbolicT m (SBV a)) where
-  mkLambda cmp = do let cfg = defaultSMTCfg { smtLibVersion = SMTLib2 }
-                    (val, res) <- runSymbolic (Lambda cfg) cmp
-
-                    let SMTProblem{smtLibPgm} = Control.runProofOn (Lambda cfg) QueryInternal [] res
-
-                    pure $ show (smtLibPgm cfg) ++ "\n" ++ show val
+-- | Turn a closed symbolic computation to a lambda
+instance Lambda (Symbolic (SBV a)) where
+  lambda cmp = do ((), res) <- runSymbolic Lambda (cmp >>= output >> return ())
+                  pure $ show res
 
 -- | Base case, simple values
-instance MonadSymbolic m => Lambda m (SBV a) where
-  mkLambda = mkLambda . (output :: SBV a -> SymbolicT m (SBV a))
+instance Lambda (SBV a) where
+  lambda = lambda . (pure :: SBV a -> Symbolic (SBV a))
 
 -- | Functions
-instance (SymVal a, Lambda m r) => Lambda m (SBV a -> r) where
-  mkLambda fn = mkLambda =<< fn <$> mkSymVal (NonQueryVar (Just ALL)) Nothing
+instance (SymVal a, Lambda r) => Lambda (SBV a -> r) where
+  lambda fn = do arg <- mkSymVal (NonQueryVar Nothing) Nothing
+                 lambda $ fn arg
 
 -- | Functions of 2-tuple argument
-instance (SymVal a, SymVal b, Lambda m r) => Lambda m ((SBV a, SBV b) -> r) where
-  mkLambda fn = mkLambda $ \a b -> fn (a, b)
+instance (SymVal a, SymVal b, Lambda r) => Lambda ((SBV a, SBV b) -> r) where
+  lambda fn = lambda $ \a b -> fn (a, b)
 
 -- | Functions of 3-tuple arguments
-instance (SymVal a, SymVal b, SymVal c, Lambda m r) => Lambda m ((SBV a, SBV b, SBV c) -> r) where
-  mkLambda fn = mkLambda $ \a b c -> fn (a, b, c)
+instance (SymVal a, SymVal b, SymVal c, Lambda r) => Lambda ((SBV a, SBV b, SBV c) -> r) where
+  lambda fn = lambda $ \a b c -> fn (a, b, c)
 
 -- | Functions of 4-tuple arguments
-instance (SymVal a, SymVal b, SymVal c, SymVal d, Lambda m r) => Lambda m ((SBV a, SBV b, SBV c, SBV d) -> r) where
-  mkLambda fn = mkLambda $ \a b c d-> fn (a, b, c, d)
+instance (SymVal a, SymVal b, SymVal c, SymVal d, Lambda r) => Lambda ((SBV a, SBV b, SBV c, SBV d) -> r) where
+  lambda fn = lambda $ \a b c d-> fn (a, b, c, d)
 
 -- | Functions of 5-tuple arguments
-instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, Lambda m r) => Lambda m ((SBV a, SBV b, SBV c, SBV d, SBV e) -> r) where
-  mkLambda fn = mkLambda $ \a b c d e -> fn (a, b, c, d, e)
+instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, Lambda r) => Lambda ((SBV a, SBV b, SBV c, SBV d, SBV e) -> r) where
+  lambda fn = lambda $ \a b c d e -> fn (a, b, c, d, e)
 
 -- | Functions of 6-tuple arguments
-instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, SymVal f, Lambda m r) => Lambda m ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f) -> r) where
-  mkLambda fn = mkLambda $ \a b c d e f -> fn (a, b, c, d, e, f)
+instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, SymVal f, Lambda r) => Lambda ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f) -> r) where
+  lambda fn = lambda $ \a b c d e f -> fn (a, b, c, d, e, f)
 
 -- | Functions of 7-tuple arguments
-instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, SymVal f, SymVal g, Lambda m r) => Lambda m ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f, SBV g) -> r) where
-  mkLambda fn = mkLambda $ \a b c d e f g -> fn (a, b, c, d, e, f, g)
+instance (SymVal a, SymVal b, SymVal c, SymVal d, SymVal e, SymVal f, SymVal g, Lambda r) => Lambda ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f, SBV g) -> r) where
+  lambda fn = lambda $ \a b c d e f g -> fn (a, b, c, d, e, f, g)
