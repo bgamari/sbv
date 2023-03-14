@@ -50,6 +50,7 @@ SBV library provides support for dealing with symbolic values in Haskell. It int
   - Symbolic polynomials over GF(2^n ), polynomial arithmetic, and CRCs.
   - Uninterpreted constants and functions over symbolic values, with user defined axioms.
   - Uninterpreted sorts, and proofs over such sorts, potentially with axioms.
+  - Ability to define SMTLib functions, generated directly from Haskell versions, including support for recursive and mutually recursive functions.
 
 The user can construct ordinary Haskell programs using these types, which behave like ordinary Haskell values when used concretely. However, when used with symbolic arguments, functions built out of these types can also be:
 
