@@ -21,7 +21,7 @@
 module Data.SBV.Lambda (
             lambda,      lambdaStr
           , namedLambda, namedLambdaStr
-          , constraint,  constraintStr
+          , constraint,  constraintStr, constr2Bool
         ) where
 
 import Control.Monad.Trans
@@ -109,6 +109,16 @@ constraintStr inState nm = constraintGen mkAx inState
                 ["; user given constraint for: " ++ nm ++ if null frees then "" else " [Refers to: " ++ intercalate ", " frees ++ "]"
                 , "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
                 ]
+
+-- | This will replace constraintStr eventually
+constr2Bool :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m SBool
+constr2Bool inState = constraintGen (mkBool . toStr) inState
+   where toStr (Defn _frees ""     body) = body 0
+         toStr (Defn _frees params body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
+
+         mkBool :: String -> SBool
+         mkBool str = SBV $ SVal KBool $ Right $ cache f
+           where f st = newExpr st KBool (SBVApp (Uninterpreted str) [])
 
 -- | Convert to an appropriate SMTLib representation.
 convert :: MonadIO m => State -> Kind -> SymbolicT m () -> m Defn

@@ -440,16 +440,16 @@ instance (SymVal a, Lambda m r) => Lambda m (SBV a -> r) where
 -- internally and do not export it from SBV.
 class SolverContext m where
    -- | Add a constraint, any satisfying instance must satisfy this condition.
-   constrain :: SBool -> m ()
+   constrain :: Constraint (SymbolicT m) a => a -> m ()
 
    -- | Add a soft constraint. The solver will try to satisfy this condition if possible, but won't if it cannot.
-   softConstrain :: SBool -> m ()
+   softConstrain :: Constraint (SymbolicT m) a => a -> m ()
 
    -- | Add a named constraint. The name is used in unsat-core extraction.
-   namedConstraint :: String -> SBool -> m ()
+   namedConstraint :: Constraint (SymbolicT m) a => String -> a -> m ()
 
    -- | Add a constraint, with arbitrary attributes.
-   constrainWithAttribute :: [(String, String)] -> SBool -> m ()
+   constrainWithAttribute :: Constraint (SymbolicT m) a => [(String, String)] -> a -> m ()
 
    -- | Set info. Example: @setInfo ":status" ["unsat"]@.
    setInfo :: String -> [String] -> m ()

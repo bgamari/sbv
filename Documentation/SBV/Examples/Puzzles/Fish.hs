@@ -96,12 +96,16 @@ fishOwner = do vs <- getModelValues "fishOwner" `fmap` allSatWith z3{satTrackUFs
               a `is`       v = a .== literal v
 
           let fact0   = constrain
+
+              fact1 :: (SInteger -> SBool) -> Symbolic ()
               fact1 f = do i <- free_
-                           constrain $ 1 .<= i .&& i .<= (5 :: SInteger)
+                           constrain $ 1 .<= i .&& i .<= 5
                            constrain $ f i
+
+              fact2 :: (SInteger -> SInteger -> SBool) -> Symbolic ()
               fact2 f = do i <- free_
                            j <- free_
-                           constrain $ 1 .<= i .&& i .<= (5 :: SInteger)
+                           constrain $ 1 .<= i .&& i .<= 5
                            constrain $ 1 .<= j .&& j .<= 5
                            constrain $ i ./= j
                            constrain $ f i j

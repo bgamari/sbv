@@ -76,7 +76,7 @@ import Data.SBV.Core.Data     ( SV(..), trueSV, falseSV, CV(..), trueCV, falseCV
                               , SolverContext(..), SBool, Objective(..), SolverCapabilities(..), capabilities
                               , Result(..), SMTProblem(..), trueSV, SymVal(..), SBVPgm(..), SMTSolver(..), SBVRunMode(..)
                               , SBVType(..), forceSVArg, RoundingMode(RoundNearestTiesToEven), (.=>)
-                              , RCSet(..), Lambda(..)
+                              , RCSet(..), Lambda(..), Constraint
                               )
 
 import Data.SBV.Core.Symbolic ( IncState(..), withNewIncState, State(..), SMTDef(..), svToSV
@@ -120,9 +120,10 @@ instance MonadIO m => SolverContext (QueryT m) where
    softConstrain          = addQueryConstraint True  []
    namedConstraint nm     = addQueryConstraint False [(":named", nm)]
    constrainWithAttribute = addQueryConstraint False
-   contextState           = queryState
 
-   addAxiom nm f          = do
+   contextState = queryState
+
+   addAxiom nm f = do
       st <- queryState
       ax <- liftIO $ constraint st nm f
 
@@ -145,12 +146,14 @@ instance MonadIO m => SolverContext (QueryT m) where
 
 -- | Adding a constraint, possibly with attributes and possibly soft. Only used internally.
 -- Use 'constrain' and 'namedConstraint' from user programs.
-addQueryConstraint :: (MonadIO m, MonadQuery m) => Bool -> [(String, String)] -> SBool -> m ()
-addQueryConstraint isSoft atts b = do sv <- inNewContext (\st -> liftIO $ do mapM_ (registerLabel "Constraint" st) [nm | (":named", nm) <- atts]
-                                                                             sbvToSV st b)
+addQueryConstraint :: (MonadIO m, MonadQuery m, Constraint (SymbolicT m) b) => Bool -> [(String, String)] -> b -> m ()
+addQueryConstraint isSoft atts b = do
+     st <- queryState
+     sv <- constr2Bool st b >>= liftIO . sbvToSV st
+     liftIO $ mapM_ (registerLabel "Constraint" st) [nm | (":named", nm) <- atts]
 
-                                      unless (null atts && sv == trueSV) $
-                                             send True $ "(" ++ asrt ++ " " ++ addAnnotations atts (show sv)  ++ ")"
+     unless (null atts && sv == trueSV) $
+            send True $ "(" ++ asrt ++ " " ++ addAnnotations atts (show sv)  ++ ")"
    where asrt | isSoft = "assert-soft"
               | True   = "assert"
 
@@ -1353,7 +1356,7 @@ getAllSatResult = do queryDebug ["*** Checking Satisfiability, all solutions.."]
                                                                                            _               -> error $ "Data.SBV: Cannot uniquely determine " ++ show nm ++ " in " ++ show assocs
 
                                                        cstr :: Bool -> (SVal, CV) -> m ()
-                                                       cstr shouldReject (sv, cv) = constrain $ SBV $ mkEq (kindOf sv) sv (SVal (kindOf sv) (Left cv))
+                                                       cstr shouldReject (sv, cv) = constrain $ (SBV (mkEq (kindOf sv) sv (SVal (kindOf sv) (Left cv))) :: SBool)
                                                          where mkEq :: Kind -> SVal -> SVal -> SVal
                                                                mkEq k a b
                                                                 | isDouble k || isFloat k || isFP k
