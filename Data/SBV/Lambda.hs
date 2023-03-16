@@ -112,7 +112,7 @@ constraintStr inState nm = constraintGen mkAx inState
 
 -- | This will replace constraintStr eventually
 constr2Bool :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m SBool
-constr2Bool inState = constraintGen (mkBool . toStr) inState
+constr2Bool = constraintGen (mkBool . toStr)
    where toStr (Defn _frees ""     body) = body 0
          toStr (Defn _frees params body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
 
