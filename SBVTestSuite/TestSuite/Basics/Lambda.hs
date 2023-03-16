@@ -174,7 +174,7 @@ tests =
                                        appendFile rf ("\nRESULT:\n" P.++ m P.++ "\n")
                                        `C.catch` (\(e :: C.SomeException) -> appendFile rf ("\nEXCEPTION CAUGHT:\n" P.++ show e P.++ "\n"))
            where run = do arg <- free_
-                          constrain $ f arg
+                          constrain (f arg :: SBool)
                           query $ do arg2 <- freshVar_
                                      constrain $ f arg2
                                      cs <- checkSat
@@ -191,7 +191,7 @@ tests =
                           constrain $ f arg1 arg2
                           query $ do arg3 <- freshVar_
                                      arg4 <- freshVar_
-                                     constrain $ f arg3 arg4
+                                     constrain (f arg3 arg4 :: SBool)
                                      cs <- checkSat
                                      case cs of
                                        Sat -> getModel
