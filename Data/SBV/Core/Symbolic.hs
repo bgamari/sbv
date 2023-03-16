@@ -1160,11 +1160,11 @@ inputsToList =  (userInputsToList *** internInputsToList) . getInputs
 data SMTDef = SMTDef String           -- ^ Defined functions -- name
                      Kind             -- ^ Final kind of the definition (resulting kind, not the params)
                      [String]         -- ^ other definitions it refers to
-                     String           -- ^ parameter string
+                     (Maybe String)   -- ^ parameter string, if any
                      (Int -> String)  -- ^ Body, in SMTLib syntax, given the tab amount
             | SMTLam Kind             -- ^ Final kind of the definition (resulting kind, not the params)
                      [String]         -- ^ Anonymous function -- other definitions it refers to
-                     String           -- ^ parameter string
+                     (Maybe String)   -- ^ parameter string, if any
                      (Int -> String)  -- ^ Body, in SMTLib syntax, given the tab amount
             | SMTAxm String           -- ^ Defined axion -- name
                      [String]         -- ^ other definitions it refers to
@@ -1179,7 +1179,7 @@ instance Show SMTDef where
     where shDef mbNm fk frees p body = unlines [ "-- User defined function: " ++ fromMaybe "Anonymous" mbNm
                                                , "-- Final return type    : " ++ show fk
                                                , "-- Refers to            : " ++ unwords frees
-                                               , "-- Parameters           : " ++ p
+                                               , "-- Parameters           : " ++ fromMaybe "NONE" p
                                                , "-- Body                 : "
                                                , body 2
                                                ]

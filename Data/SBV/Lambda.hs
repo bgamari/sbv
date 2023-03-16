@@ -34,6 +34,8 @@ import Data.SBV.Utils.PrettyNum
 
 import Data.IORef (readIORef)
 import Data.List
+import Data.Maybe (fromMaybe)
+
 
 import qualified Data.Foldable      as F
 import qualified Data.Map.Strict    as M
@@ -42,7 +44,7 @@ import qualified Data.IntMap.Strict as IM
 import qualified Data.Generics.Uniplate.Data as G
 
 data Defn = Defn [String]        -- The uninterpreted names referred to in the body
-                 String          -- Param declaration. Empty if there are no params
+                 (Maybe String)  -- Param declaration, if any
                  (Int -> String) -- Body, given the tab amount.
 
 -- | Generic creator for anonymous lamdas.
@@ -61,7 +63,7 @@ lambda inState fk = lambdaGen mkLam inState fk
 -- | Create an anonymous lambda, rendered as n SMTLib string
 lambdaStr :: (MonadIO m, Lambda (SymbolicT m) a) => State -> Kind -> a -> m String
 lambdaStr = lambdaGen mkLam
-   where mkLam (Defn _frees params body) = "(lambda " ++ params ++ "\n" ++ body 2 ++ ")"
+   where mkLam (Defn _frees mbParams body) = "(lambda " ++ fromMaybe "()" mbParams ++ "\n" ++ body 2 ++ ")"
 
 -- | Generaic creator for named functions,
 namedLambdaGen :: (MonadIO m, Lambda (SymbolicT m) a) => (Defn -> b) -> State -> Kind -> a -> m b
@@ -100,21 +102,24 @@ constraintGen trans inState f = do
 -- | Create a named SMTLib constraint, in the given state.
 constraint :: (MonadIO m, Constraint (SymbolicT m) a) => State -> String -> a -> m SMTDef
 constraint inState nm = constraintGen mkAx inState
-   where mkAx (Defn deps params body) = SMTAxm nm deps $ "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
+   where mkAx (Defn deps Nothing       body) = SMTAxm nm deps $ "(assert " ++ body 2 ++ ")"
+         mkAx (Defn deps (Just params) body) = SMTAxm nm deps $ "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
 
 -- | Create an SMTLib constraint, in the given state, string version.
 constraintStr :: (MonadIO m, Constraint (SymbolicT m) a) => State -> String -> a -> m String
 constraintStr inState nm = constraintGen mkAx inState
-   where mkAx (Defn frees params body) = intercalate "\n"
+   where mkAx (Defn frees mbParams body) = intercalate "\n"
                 ["; user given constraint for: " ++ nm ++ if null frees then "" else " [Refers to: " ++ intercalate ", " frees ++ "]"
-                , "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
+                , case mbParams of
+                    Nothing     -> "(assert " ++ body 2 ++ "))"
+                    Just params -> "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
                 ]
 
 -- | This will replace constraintStr eventually
 constr2Bool :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m SBool
 constr2Bool = constraintGen (mkBool . toStr)
-   where toStr (Defn _frees ""     body) = body 0
-         toStr (Defn _frees params body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
+   where toStr (Defn _frees Nothing       body) = body 0
+         toStr (Defn _frees (Just params) body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
 
          mkBool :: String -> SBool
          mkBool str = SBV $ SVal KBool $ Right $ cache f
@@ -193,7 +198,7 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
          | True
          = res
          where res = Defn (nub [nm | Uninterpreted nm <- G.universeBi asgnsSeq])
-                          paramStr
+                          mbParam
                           (intercalate "\n" . body)
 
                params = case is of
@@ -208,7 +213,9 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
                                            | True
                                            -> map (getSV . snd) inps
 
-               paramStr = '(' : unwords (map (\p -> '(' : show p ++ " " ++ smtType (kindOf p) ++ ")")  params) ++ ")"
+               mbParam
+                 | null params = Nothing
+                 | True        = Just $ '(' : unwords (map (\p -> '(' : show p ++ " " ++ smtType (kindOf p) ++ ")")  params) ++ ")"
 
                body tabAmnt = let tab = replicate tabAmnt ' '
                               in    [tab ++ "(let ((" ++ show s ++ " " ++ v ++ "))" | (s, v) <- bindings]
