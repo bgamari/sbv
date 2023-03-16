@@ -148,12 +148,15 @@ instance MonadIO m => SolverContext (QueryT m) where
 -- Use 'constrain' and 'namedConstraint' from user programs.
 addQueryConstraint :: (MonadIO m, MonadQuery m, Constraint (SymbolicT m) b) => Bool -> [(String, String)] -> b -> m ()
 addQueryConstraint isSoft atts b = do
-     st <- queryState
-     sv <- constr2Bool st b >>= liftIO . sbvToSV st
-     liftIO $ mapM_ (registerLabel "Constraint" st) [nm | (":named", nm) <- atts]
+     sbv <- queryState >>= \st -> constr2Bool st b
+
+     -- NB. It's important to call sbvToSV inside inNewContext, so the solver gets synchronized here
+     sv  <- inNewContext (\st -> liftIO $ do mapM_ (registerLabel "Constraint" st) [nm | (":named", nm) <- atts]
+                                             sbvToSV st sbv)
 
      unless (null atts && sv == trueSV) $
             send True $ "(" ++ asrt ++ " " ++ addAnnotations atts (show sv)  ++ ")"
+
    where asrt | isSoft = "assert-soft"
               | True   = "assert"
 
