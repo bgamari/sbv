@@ -217,16 +217,25 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
                  | null params = Nothing
                  | True        = Just $ '(' : unwords (map (\p -> '(' : show p ++ " " ++ smtType (kindOf p) ++ ")")  params) ++ ")"
 
-               body tabAmnt = let tab = replicate tabAmnt ' '
-                              in    [tab ++ "(let ((" ++ show s ++ " " ++ v ++ "))" | (s, v) <- bindings]
-                                 ++ [tab ++ show out ++ replicate (length bindings) ')']
+               body tabAmnt
+                 | Just e <- simpleBody bindings out
+                 = [replicate tabAmnt ' ' ++ e]
+                 | True
+                 = let tab = replicate tabAmnt ' '
+                   in    [tab ++ "(let ((" ++ show s ++ " " ++ v ++ "))" | (s, v) <- bindings]
+                      ++ [tab ++ show out ++ replicate (length bindings) ')']
+
+               -- if we have just one definition returning it, simplify
+               simpleBody :: [(SV, String)] -> SV -> Maybe String
+               simpleBody [(v, e)] o | v == o = Just e
+               simpleBody _        _          = Nothing
 
                assignments = F.toList (pgmAssignments pgm)
 
                constants = filter ((`notElem` [falseSV, trueSV]) . fst) consts
 
                bindings :: [(SV, String)]
-               bindings =  map mkConst constants ++ map mkAsgn  assignments
+               bindings = map mkConst constants ++ map mkAsgn assignments
 
                mkConst :: (SV, CV) -> (SV, String)
                mkConst (sv, cv) = (sv, cvToSMTLib (roundingMode cfg) cv)
