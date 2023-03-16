@@ -127,7 +127,7 @@ cvt ctx kindInfo isSat comments (inputs, trackerVars) skolemInps (allConsts, con
                                 , "***    Found declaration: " ++ unwords (mapMaybe smtDefGivenName defs)
                                 , "***    Quantified args  : " ++ unwords (map pretty foralls)
                                 , "***"
-                                , "*** If you use smtFunction/addAxiom, you cannot have explicit quantifiers."
+                                , "*** If you use smtFunction, you cannot have explicit quantifiers."
                                 , "*** Please report this as a feature request, if you cannot work around this limitation."
                                 ]
 

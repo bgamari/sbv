@@ -295,9 +295,9 @@ module Data.SBV (
   -- $enumerations
   , mkSymbolicEnumeration
 
-  -- * Uninterpreted sorts, axioms, constants, and functions
+  -- * Uninterpreted sorts, constants, and functions
   -- $uninterpreted
-  , mkUninterpretedSort, addAxiom
+  , mkUninterpretedSort
 
   -- * Stopping unrolling: Defined functions
   , SMTDefinable(..)

@@ -32,9 +32,8 @@ import Data.SBV.Tools.WeakestPreconditions
 
 import GHC.Generics (Generic)
 
--- Access Prelude's gcd, but qualified:
+-- Hide prelude's gcd
 import Prelude hiding (gcd)
-import qualified Prelude as P (gcd)
 
 -- $setup
 -- >>> -- For doctest purposes only:
@@ -102,21 +101,13 @@ algorithm = Seq [ assert "x > 0, y > 0" $ \GCDS{x, y} -> x .> 0 .&& y .> 0
         -- have the pair and use the lexicographic ordering.
         msr GCDS{i, j} = [i, j]
 
--- | Symbolic GCD as our specification. Note that we cannot
--- really implement the GCD function since it is not
--- symbolically terminating.  So, we instead uninterpret and
--- axiomatize it below.
---
--- NB. The concrete part of the definition is only used in calls to 'traceExecution'
--- and is not needed for the proof. If you don't need to call 'traceExecution', you
--- can simply ignore that part and directly uninterpret. In that case, we simply
--- use Prelude's version.
+-- | Symbolic GCD as our specification. Note that we generate an actual smt-function
+-- for this since it's not symbolically terminating.
 gcd :: SInteger -> SInteger -> SInteger
-gcd x y
- | Just i <- unliteral x, Just j <- unliteral y
- = literal (P.gcd i j)
- | True
- = uninterpret "gcd" x y
+gcd x y = gcd' (abs x) (abs y)
+  where gcd' = smtFunction "gcd" $ \a b -> ite (b .== 0)
+                                               a
+                                               (gcd' b (a `sRem` b))
 
 -- | Constraints and axioms we need to state explicitly to tell
 -- the SMT solver about our specification for GCD.
@@ -127,9 +118,9 @@ axiomatizeGCD = do -- Base case. Strictly speaking, we don't really need this ca
                    e <- sInteger_
                    constrain $ gcd e e .== e
 
-                   addAxiom "gcd_equal"    $ \x   -> x .> 0            .=> gcd x x     .== x
-                   addAxiom "gcd_unequal1" $ \x y -> x .> 0 .&& y .> 0 .=> gcd (x+y) y .== gcd x y
-                   addAxiom "gcd_unequal2" $ \x y -> x .> 0 .&& y .> 0 .=> gcd x (y+x) .== gcd x y
+                   constrain $ \x   -> x .> 0            .=> gcd x x     .== x
+                   constrain $ \x y -> x .> 0 .&& y .> 0 .=> gcd (x+y) y .== gcd x y
+                   constrain $ \x y -> x .> 0 .&& y .> 0 .=> gcd x (y+x) .== gcd x y
 
 -- | Precondition for our program: @x@ and @y@ must be strictly positive
 pre :: G -> SBool

@@ -406,11 +406,11 @@ sbvToSymSV sbv = do
 
 -- | Values that we can turn into a constraint
 class MonadSymbolic m => Constraint m a where
-  mkConstraint :: State -> a -> m ()
+  mkConstraint :: State -> a -> m SBool
 
 -- | Base case: simple booleans
 instance MonadSymbolic m => Constraint m SBool where
-  mkConstraint _ out = void $ output out
+  mkConstraint _ = pure
 
 -- | Functions
 instance (SymVal a, Constraint m r) => Constraint m (SBV a -> r) where
@@ -460,9 +460,6 @@ class SolverContext m where
    -- | Set the logic.
    setLogic :: Logic -> m ()
 
-   -- | Add a user specified axiom to the generated SMT-Lib file. The first argument is for commenting purposes.
-   addAxiom :: Constraint Symbolic a => String -> a -> m ()
-
    -- | Set a solver time-out value, in milli-seconds. This function
    -- essentially translates to the SMTLib call @(set-info :timeout val)@,
    -- and your backend solver may or may not support it! The amount given
@@ -473,7 +470,7 @@ class SolverContext m where
    -- | Get the state associated with this context
    contextState :: m State
 
-   {-# MINIMAL constrain, softConstrain, namedConstraint, constrainWithAttribute, setOption, addAxiom, contextState #-}
+   {-# MINIMAL constrain, softConstrain, namedConstraint, constrainWithAttribute, setOption, contextState #-}
 
    -- time-out, logic, and info are  simply options in our implementation, so default implementation suffices
    setTimeOut t = setOption $ OptionKeyword ":timeout" [show t]

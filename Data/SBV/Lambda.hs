@@ -21,21 +21,22 @@
 module Data.SBV.Lambda (
             lambda,      lambdaStr
           , namedLambda, namedLambdaStr
-          , constraint,  constraintStr, constr2Bool
+          , constraint,  constraintStr
         ) where
 
 import Control.Monad.Trans
 
 import Data.SBV.Core.Data
 import Data.SBV.Core.Kind
-import Data.SBV.Core.Symbolic
 import Data.SBV.SMT.SMTLib2
 import Data.SBV.Utils.PrettyNum
+
+import           Data.SBV.Core.Symbolic hiding   (mkNewState, fresh)
+import qualified Data.SBV.Core.Symbolic as     S (mkNewState)
 
 import Data.IORef (readIORef)
 import Data.List
 import Data.Maybe (fromMaybe)
-
 
 import qualified Data.Foldable      as F
 import qualified Data.Map.Strict    as M
@@ -47,13 +48,51 @@ data Defn = Defn [String]        -- The uninterpreted names referred to in the b
                  (Maybe String)  -- Param declaration, if any
                  (Int -> String) -- Body, given the tab amount.
 
+-- | Maka a new substate from the incoming state, sharing parts as necessary
+inSubState :: MonadIO m => State -> (State -> m b) -> m b
+inSubState inState comp = do
+        ll <- liftIO $ readIORef (rLambdaLevel inState)
+        stEmpty <- S.mkNewState (stCfg inState) (LambdaGen (ll + 1))
+
+        let share fld = fld inState   -- reuse the field from the parent-context
+            fresh fld = fld stEmpty   -- create a new field here
+
+        -- freshen certain fields, sharing some from the parent, and run the comp
+        comp State { pathCond     = share pathCond
+                   , stCfg        = fresh stCfg
+                   , startTime    = share startTime
+                   , runMode      = fresh runMode
+                   , rIncState    = share rIncState
+                   , rCInfo       = share rCInfo
+                   , rObservables = share rObservables
+                   , rctr         = fresh rctr
+                   , rLambdaLevel = fresh rLambdaLevel
+                   , rUsedKinds   = share rUsedKinds
+                   , rUsedLbls    = share rUsedLbls
+                   , rinps        = fresh rinps
+                   , rConstraints = fresh rConstraints
+                   , routs        = fresh routs
+                   , rtblMap      = share rtblMap
+                   , spgm         = fresh spgm
+                   , rconstMap    = fresh rconstMap
+                   , rexprMap     = fresh rexprMap
+                   , rArrayMap    = share rArrayMap
+                   , rFArrayMap   = share rFArrayMap
+                   , rUIMap       = share rUIMap
+                   , rUserFuncs   = share rUserFuncs
+                   , rCgMap       = share rCgMap
+                   , rDefns       = share rDefns
+                   , rSMTOptions  = share rSMTOptions
+                   , rOptGoals    = share rOptGoals
+                   , rAsserts     = share rAsserts
+                   , rSVCache     = fresh rSVCache
+                   , rAICache     = fresh rAICache
+                   , rQueryState  = fresh rQueryState
+                   }
+
 -- | Generic creator for anonymous lamdas.
 lambdaGen :: (MonadIO m, Lambda (SymbolicT m) a) => (Defn -> b) -> State -> Kind -> a -> m b
-lambdaGen trans inState fk f = do
-   ll  <- liftIO $ readIORef (rLambdaLevel inState)
-   st  <- mkNewState (stCfg inState) $ LambdaGen (ll + 1)
-
-   trans <$> convert st fk (mkLambda st f)
+lambdaGen trans inState fk f = inSubState inState $ \st -> trans <$> convert st fk (mkLambda st f)
 
 -- | Create an SMTLib lambda, in the given state.
 lambda :: (MonadIO m, Lambda (SymbolicT m) a) => State -> Kind -> a -> m SMTDef
@@ -67,14 +106,7 @@ lambdaStr = lambdaGen mkLam
 
 -- | Generaic creator for named functions,
 namedLambdaGen :: (MonadIO m, Lambda (SymbolicT m) a) => (Defn -> b) -> State -> Kind -> a -> m b
-namedLambdaGen trans inState@State{rUserFuncs, rDefns} fk f = do
-   ll      <- liftIO $ readIORef (rLambdaLevel inState)
-   stEmpty <- mkNewState (stCfg inState) $ LambdaGen (ll + 1)
-
-   -- restore user-funcs and their definitions
-   let st = stEmpty{rUserFuncs = rUserFuncs, rDefns = rDefns}
-
-   trans <$> convert st fk (mkLambda st f)
+namedLambdaGen trans inState fk f = inSubState inState $ \st -> trans <$> convert st fk (mkLambda st f)
 
 -- | Create a named SMTLib function, in the given state.
 namedLambda :: (MonadIO m, Lambda (SymbolicT m) a) => State -> String -> Kind -> a -> m SMTDef
@@ -88,42 +120,27 @@ namedLambdaStr inState nm fk = namedLambdaGen mkDef inState fk
 
 -- | Generic constraint generator.
 constraintGen :: (MonadIO m, Constraint (SymbolicT m) a) => (Defn -> b) -> State -> a -> m b
-constraintGen trans inState f = do
+constraintGen trans inState@State{rLambdaLevel} f = do
    -- make sure we're at the top
-   ll <- liftIO $ readIORef (rLambdaLevel inState)
+   ll <- liftIO $ readIORef rLambdaLevel
    () <- case ll of
            0 -> pure ()
            _ -> error "Data.SBV.constraintGen: Not supported: constraint calls that are not at the top-level."
 
-   st <- mkNewState (stCfg inState) $ LambdaGen 1
+   inSubState inState $ \st -> trans <$> convert st KBool (mkConstraint st f >>= output >> pure ())
 
-   trans <$> convert st KBool (mkConstraint st f)
-
--- | Create a named SMTLib constraint, in the given state.
-constraint :: (MonadIO m, Constraint (SymbolicT m) a) => State -> String -> a -> m SMTDef
-constraint inState nm = constraintGen mkAx inState
-   where mkAx (Defn deps Nothing       body) = SMTAxm nm deps $ "(assert " ++ body 2 ++ ")"
-         mkAx (Defn deps (Just params) body) = SMTAxm nm deps $ "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
-
--- | Create an SMTLib constraint, in the given state, string version.
-constraintStr :: (MonadIO m, Constraint (SymbolicT m) a) => State -> String -> a -> m String
-constraintStr inState nm = constraintGen mkAx inState
-   where mkAx (Defn frees mbParams body) = intercalate "\n"
-                ["; user given constraint for: " ++ nm ++ if null frees then "" else " [Refers to: " ++ intercalate ", " frees ++ "]"
-                , case mbParams of
-                    Nothing     -> "(assert " ++ body 2 ++ "))"
-                    Just params -> "(assert (forall " ++ params ++ "\n" ++ body 10 ++ "))"
-                ]
-
--- | This will replace constraintStr eventually
-constr2Bool :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m SBool
-constr2Bool = constraintGen (mkBool . toStr)
-   where toStr (Defn _frees Nothing       body) = body 0
-         toStr (Defn _frees (Just params) body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
-
-         mkBool :: String -> SBool
+-- | Generate a constraint.
+constraint :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m SBool
+constraint inState = (mkBool <$>) . constraintStr inState
+   where mkBool :: String -> SBool
          mkBool str = SBV $ SVal KBool $ Right $ cache f
            where f st = newExpr st KBool (SBVApp (Uninterpreted str) [])
+
+-- | Generate a constraint, string version
+constraintStr :: (MonadIO m, Constraint (SymbolicT m) a) => State -> a -> m String
+constraintStr = constraintGen toStr
+   where toStr (Defn _frees Nothing       body) = body 0
+         toStr (Defn _frees (Just params) body) = "(forall " ++ params ++ "\n" ++ body 4 ++ ")"
 
 -- | Convert to an appropriate SMTLib representation.
 convert :: MonadIO m => State -> Kind -> SymbolicT m () -> m Defn
@@ -144,9 +161,9 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
 
                   _qcInfo       -- Quickcheck info, does not apply, ignored
 
-                  observables   -- Observables: No way to display these, so if present we error out
+                  _observables  -- Observables: Nothing to do
 
-                  codeSegs      -- UI code segments: Again, shouldn't happen; if present, error out
+                  _codeSegs     -- UI code segments: Again, shouldn't happen; if present, error out
 
                   is            -- Inputs
 
@@ -154,8 +171,8 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
                   , consts      -- constants used
                   )
 
-                  tbls          -- Tables: Not currently supported inside lambda's
-                  arrs          -- Arrays: Not currently supported inside lambda's
+                  _tbls         -- Tables                : nothing to do with them
+                  _arrs         -- Arrays                : nothing to do with them
                   _uis          -- Uninterpeted constants: nothing to do with them
                   _axs          -- Axioms definitions    : nothing to do with them
 
@@ -166,22 +183,6 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
 
                   outputs       -- Outputs of the lambda (should be singular)
          )
-         | not (null observables)
-         = tbd [ "Observable values."
-               , "  Saw: " ++ intercalate ", " [o | (o, _, _) <- observables]
-               ]
-         | not (null codeSegs)
-         = tbd [ "Uninterpreted code segments."
-               , "  Saw: " ++ intercalate ", " [o | (o, _) <- codeSegs]
-               ]
-         | not (null tbls)
-         = tbd [ "Auto-constructed tables."
-               , "  Saw: " ++ intercalate ", " ["table" ++ show i | ((i, _, _), _) <- tbls]
-               ]
-         | not (null arrs)
-         = tbd [ "Array values."
-               , "  Saw: " ++ intercalate ", " ["arr" ++ show i | (i, _) <- arrs]
-               ]
          | not (null cstrs)
          = tbd [ "Constraints."
                , "  Saw: " ++ show (length cstrs) ++ " additional constraint(s)."

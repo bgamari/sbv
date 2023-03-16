@@ -85,18 +85,10 @@ algorithm = Seq [ Assign $ \st -> st{i = 0, k = 1, m = 0}
                               ]
                 ]
 
--- | Symbolic fibonacci as our specification. Note that we cannot
--- really implement the fibonacci function since it is not
--- symbolically terminating.  So, we instead uninterpret and
--- axiomatize it below.
---
--- NB. The concrete part of the definition is only used in calls to 'traceExecution'
--- and is not needed for the proof. If you don't need to call 'traceExecution', you
--- can simply ignore that part and directly uninterpret.
+-- | Symbolic fibonacci as our specification. Note that we generate an actual smt-function
+-- for this since it's not symbolically terminating.
 fib :: SInteger -> SInteger
-fib x
- | isSymbolic x = uninterpret "fib" x
- | True         = go x
+fib = smtFunction "fib" go
  where go i = ite (i .== 0) 0
             $ ite (i .== 1) 1
             $ go (i-1) + go (i-2)
@@ -113,11 +105,9 @@ axiomatizeFib = do -- Base cases.
                    --
                    -- As otherwise they would be concretely evaluated and
                    -- would not be sent to the SMT solver!
-                   x <- sInteger_
-                   constrain $ x .== 0 .=> fib x .== 0
-                   constrain $ x .== 1 .=> fib x .== 1
-
-                   addAxiom "fib_n" $ \n -> fib (n+2) .== fib (n+1) + fib n
+                   constrain $ \n -> n .== 0 .=> fib n .== 0
+                   constrain $ \n -> n .== 1 .=> fib n .== 1
+                   constrain $ \n -> fib (n+2) .== fib (n+1) + fib n
 
 -- | Precondition for our program: @n@ must be non-negative.
 pre :: F -> SBool

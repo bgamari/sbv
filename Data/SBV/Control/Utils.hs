@@ -123,20 +123,6 @@ instance MonadIO m => SolverContext (QueryT m) where
 
    contextState = queryState
 
-   addAxiom nm f = do
-      st <- queryState
-      ax <- liftIO $ constraint st nm f
-
-      let bad what = error $ unlines [ ""
-                                     , "*** Data.SBV.Control.addAxiom: impossible happened."
-                                     , "*** Got a " ++ what ++ " when expecing an axiom for: " ++ nm
-                                     ]
-      case ax of
-        SMTLam{}        -> bad "anonymous function"
-        SMTDef{}        -> bad "defined function"
-        SMTAxm _ deps s -> do send True $ "; -- user given axiom: " ++ nm ++ if null deps then "" else " [Refers to: " ++ intercalate ", " deps ++ "]"
-                              send True $ intercalate "\n" [s]
-
    setOption o
      | isStartModeOption o = error $ unlines [ ""
                                              , "*** Data.SBV: '" ++ show o ++ "' can only be set at start-up time."
@@ -148,7 +134,7 @@ instance MonadIO m => SolverContext (QueryT m) where
 -- Use 'constrain' and 'namedConstraint' from user programs.
 addQueryConstraint :: (MonadIO m, MonadQuery m, Constraint (SymbolicT m) b) => Bool -> [(String, String)] -> b -> m ()
 addQueryConstraint isSoft atts b = do
-     sbv <- queryState >>= \st -> constr2Bool st b
+     sbv <- queryState >>= \st -> constraint st b
 
      -- NB. It's important to call sbvToSV inside inNewContext, so the solver gets synchronized here
      sv  <- inNewContext (\st -> liftIO $ do mapM_ (registerLabel "Constraint" st) [nm | (":named", nm) <- atts]

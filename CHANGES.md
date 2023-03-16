@@ -32,10 +32,10 @@
     this was a synonym for appending two lists, now it takes a list-of-lists and flattens it, matching the
     Haskell list function with the same name.
 
-  * [BACKWARDS COMPATIBILITY] The signature of addAxiom has changed: Instead of taking an SMTLib string, it
-    now takes an SBV lambda expression that evalues a boolean, and translates that to an SMTLib-axiom on the
-    fly. This is much safer both from a typing perspective, and also saves you from trying to figure out the
-    exact SMTLib syntax.
+  * [BACKWARDS COMPATIBILITY] The function signature of 'constrain' has changed: Instead of a simple symbolic
+    boolean, it now takes a constraint, which can have parameters and express quantifiers. Consequently,
+    the function 'addAxiom' is removed, since its functionality is now handled by 'constrain' in a much
+    safer way (both ease of use and type-checking perspective).
 
   * [BACKWARDS COMPATIBILITY] Renamed the Uninterpreted class to SMTDefinable, since its task has changed, handling
     both kinds of definitions. Unless you were referring to the name Uninterpreted in your code, this should not

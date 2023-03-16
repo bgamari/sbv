@@ -2649,11 +2649,6 @@ instance MonadIO m => SolverContext (SymbolicT m) where
    namedConstraint        nm   = imposeFullConstraint False [(":named", nm)]
    constrainWithAttribute atts = imposeFullConstraint False atts
 
-   addAxiom nm f                 = do
-        st <- symbolicEnv
-        ax <- liftIO $ constraint st nm f
-        liftIO $ modifyState st rDefns (ax :) (return ())
-
    contextState = symbolicEnv
    setOption o  = addNewSMTOption  o
 
@@ -2661,7 +2656,7 @@ instance MonadIO m => SolverContext (SymbolicT m) where
 imposeFullConstraint :: (MonadSymbolic m, Constraint (SymbolicT m) a) => Bool -> [(String, String)] -> a -> m ()
 imposeFullConstraint isSoft attrs c = do
    do st <- symbolicEnv
-      b  <- constr2Bool st c
+      b  <- constraint st c
       imposeConstraint isSoft attrs (unSBV b)
 
 -- | Generalization of 'Data.SBV.assertWithPenalty'
