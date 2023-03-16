@@ -612,8 +612,7 @@ declConst cfg (s, c)
 declUI :: (String, SBVType) -> [String]
 declUI (i, t) = declareName i t Nothing
 
--- Note that even though we get all user defined-functions here (i.e., lambda and axiom), we can only have defined-functions
--- and axioms. We spit axioms as is; and topologically sort the definitions.
+-- Note that even though we get all user defined-functions here, we can only have defined-functions; not unnamed lambdas.
 declUserFuns :: [SMTDef] -> [String]
 declUserFuns ds
   | not (null lambdas)
@@ -622,7 +621,6 @@ declUserFuns ds
   = declFuncs others
   where (lambdas, others) = partition isLam ds
         isLam SMTLam{} = True
-        isLam SMTAxm{} = False
         isLam SMTDef{} = False
 
 -- We need to topologically sort the user given definitions and axioms and put them in the proper order and construct.
@@ -631,16 +629,11 @@ declFuncs :: [SMTDef] -> [String]
 declFuncs ds = map declGroup sorted
   where mkNode d = (d, getKey d, getDeps d)
 
-        allNames = mapMaybe smtDefGivenName ds
         getKey d = case d of
                      SMTDef n _ _ _ _ -> n
                      SMTLam{}         -> error $ "Data.SBV.declFuns: Unexpected definition kind: " ++ show d
-                     -- Uniquify names of axioms. Why? Because axioms are actually unnamed, but we want to put them after any function
-                     -- definition they might refer to. So, give them a brand new name.
-                     SMTAxm n _ _     -> head [nm | i <- [(1::Int)..], let nm = n ++ " " ++ show i, nm `notElem` allNames]
 
         getDeps (SMTDef _ _ d _ _) = d
-        getDeps (SMTAxm _   d   _) = d
         getDeps l@SMTLam{}         = error $ "Data.SBV.declFuns: Unexpected definition kind: " ++ show l
 
         sorted = DG.stronglyConnComp (map mkNode ds)
@@ -656,12 +649,6 @@ declFuncs ds = map declGroup sorted
 
         declUserDef _ d@SMTLam{} = error $ "Data.SBV.declFuns: Unexpected anonymous lambda in user-defined functions: " ++ show d
 
-        declUserDef isRec a@(SMTAxm nm deps body)
-            | isRec = error $ "Data.SBV.declFuns: Unexpected recursive axiom: " ++ show a
-            | True  = "; -- user given axiom: " ++ nm ++ frees ++ "\n" ++ body
-           where frees | null deps = ""
-                       | True      = " [Refers to: " ++ intercalate ", " deps ++ "]"
-
         declUserDef isRec (SMTDef nm fk deps param body) = ("; -- user given definition: " ++ nm ++ recursive ++ frees ++ "\n") ++ s
            where (recursive, definer) | isRec = (" [Recursive]", "define-fun-rec")
                                       | True  = ("",             "define-fun")
@@ -676,8 +663,7 @@ declFuncs ds = map declGroup sorted
 
         -- declare a bunch of mutually-recursive functions
         declUserDefMulti bs = render $ map collect bs
-          where collect d@SMTAxm{} = error $ "Data.SBV.declFuns: Unexpected axiom in user-defined mutual-recursion group: "  ++ show d
-                collect d@SMTLam{} = error $ "Data.SBV.declFuns: Unexpected lambda in user-defined mutual-recursion group: " ++ show d
+          where collect d@SMTLam{} = error $ "Data.SBV.declFuns: Unexpected lambda in user-defined mutual-recursion group: " ++ show d
                 collect (SMTDef nm fk deps param body) = (deps, nm, '(' : nm ++ " " ++  decl ++ ")", body 3)
                   where decl = mkDecl param (smtType fk)
 

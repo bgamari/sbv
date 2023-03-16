@@ -78,7 +78,7 @@ import Control.Monad.Writer.Strict (MonadWriter)
 import Data.Char                   (isAlpha, isAlphaNum, toLower)
 import Data.IORef                  (IORef, newIORef, readIORef)
 import Data.List                   (intercalate, sortBy)
-import Data.Maybe                  (fromMaybe)
+import Data.Maybe                  (fromMaybe, mapMaybe)
 import Data.String                 (IsString(fromString))
 
 import Data.Time (getCurrentTime, UTCTime)
@@ -1166,16 +1166,12 @@ data SMTDef = SMTDef String           -- ^ Defined functions -- name
                      [String]         -- ^ Anonymous function -- other definitions it refers to
                      (Maybe String)   -- ^ parameter string, if any
                      (Int -> String)  -- ^ Body, in SMTLib syntax, given the tab amount
-            | SMTAxm String           -- ^ Defined axion -- name
-                     [String]         -- ^ other definitions it refers to
-                     String           -- ^ Body, in SMTLib syntax. This has the relevant "forall" inserted
 
 -- | For debug purposes
 instance Show SMTDef where
   show d = case d of
              SMTDef nm fk frees p body -> shDef (Just nm) fk frees p body
              SMTLam    fk frees p body -> shDef Nothing   fk frees p body
-             SMTAxm nm    frees   body -> shAxm nm           frees   body
     where shDef mbNm fk frees p body = unlines [ "-- User defined function: " ++ fromMaybe "Anonymous" mbNm
                                                , "-- Final return type    : " ++ show fk
                                                , "-- Refers to            : " ++ unwords frees
@@ -1183,23 +1179,16 @@ instance Show SMTDef where
                                                , "-- Body                 : "
                                                , body 2
                                                ]
-          shAxm nm      frees   body = unlines [ "-- User defined axiom: " ++ nm
-                                               , "-- Refers to            : " ++ unwords frees
-                                               , "-- Body                 : "
-                                               , body
-                                               ]
 
 -- The name of this definition
 smtDefGivenName :: SMTDef -> Maybe String
 smtDefGivenName (SMTDef n _ _ _ _) = Just n
 smtDefGivenName (SMTLam{})         = Nothing
-smtDefGivenName (SMTAxm n _ _)     = Just n
 
 -- | NFData instance for SMTDef
 instance NFData SMTDef where
   rnf (SMTDef n fk frees params body) = rnf n `seq` rnf fk `seq` rnf frees `seq` rnf params `seq` rnf body
   rnf (SMTLam   fk frees params body) =             rnf fk `seq` rnf frees `seq` rnf params `seq` rnf body
-  rnf (SMTAxm n    frees        body) = rnf n              `seq` rnf frees                  `seq` rnf body
 
 -- | The state of the symbolic interpreter
 data State  = State { pathCond     :: SVal                             -- ^ kind KBool
@@ -1888,10 +1877,7 @@ extractSymbolicSimulationState st@State{ spgm=pgm, rinps=inps, routs=outs, rtblM
    ds    <- reverse <$> readIORef defns
    unint <- do unints <- Map.toList <$> readIORef uis
                -- drop those that has a definition associated with it
-               let definedFunctionName (SMTDef nm _ _ _ _) = [nm]
-                   definedFunctionName SMTAxm{}            = []
-                   definedFunctionName SMTLam{}            = []
-                   defineds = concatMap definedFunctionName ds
+               let defineds = mapMaybe smtDefGivenName ds
                pure [ui | ui@(nm, _) <- unints, nm `notElem` defineds]
    knds  <- readIORef usedKinds
    cgMap <- Map.toList <$> readIORef cgs
