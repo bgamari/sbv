@@ -76,7 +76,6 @@ inSubState inState comp = do
                    -- These are shared IORef's; and is shared, so they will be copied back to the parent state
                    , rIncState    = share rIncState
                    , rCInfo       = share rCInfo
-                   , rObservables = share rObservables
                    , rUsedKinds   = share rUsedKinds
                    , rUsedLbls    = share rUsedLbls
                    , rtblMap      = share rtblMap
@@ -97,6 +96,7 @@ inSubState inState comp = do
                    , rLambdaLevel = fresh rLambdaLevel
                    , rinps        = fresh rinps
                    , rConstraints = fresh rConstraints
+                   , rObservables = fresh rObservables
                    , routs        = fresh routs
                    , spgm         = fresh spgm
                    , rconstMap    = fresh rconstMap
@@ -176,7 +176,7 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
 
                   _qcInfo       -- Quickcheck info, does not apply, ignored
 
-                  _observables  -- Observables: Nothing to do
+                  observables   -- Observables: There's no way to display these, so ignore
 
                   _codeSegs     -- UI code segments: Again, shouldn't happen; if present, error out
 
@@ -205,6 +205,10 @@ toLambda cfg expectedKind result@Result{resAsgns = SBVPgm asgnsSeq} = sh result
          | not (null assertions)
          = tbd [ "Assertions."
                , "  Saw: " ++ intercalate ", " [n | (n, _, _) <- assertions]
+               ]
+         | not (null observables)
+         = tbd [ "Observables."
+               , "  Saw: " ++ intercalate ", " [n | (n, _, _) <- observables]
                ]
          | kindOf out /= expectedKind
          = bad [ "Expected kind and final kind do not match"
