@@ -408,9 +408,12 @@ sbvToSymSV sbv = do
 class MonadSymbolic m => Constraint m a where
   mkConstraint :: State -> a -> m SBool
 
--- | Base case: simple booleans
+-- | Base case: simple booleans. Note that we make sure
+-- to get this down to an SV and lift it back so the
+-- changes are reflected in the parent as necessary
 instance MonadSymbolic m => Constraint m SBool where
-  mkConstraint _ = pure
+  mkConstraint st b = do sv <- liftIO $ sbvToSV st b
+                         pure $ SBV $ SVal KBool (Right (cache (const (return sv))))
 
 -- | Functions
 instance (SymVal a, Constraint m r) => Constraint m (SBV a -> r) where
