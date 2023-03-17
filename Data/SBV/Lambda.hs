@@ -58,26 +58,30 @@ inSubState inState comp = do
             fresh fld = fld stEmpty   -- create a new field here
 
         -- freshen certain fields, sharing some from the parent, and run the comp
-        comp State { pathCond     = share pathCond
-                   , stCfg        = fresh stCfg
+        -- Here's the guidance:
+        --
+        --    * Anything that's "shared" updates the calling context. It better be the case
+        --      that the caller can handle that info.
+        --    * Anything that's "fresh" will be used in this substate, and will be forgotten.
+        --      It better be the case that in "toLambda" below, you do something with it.
+        --
+        -- Note the above applies to all the IORefs, which is most of the state, though
+        -- not all. For the time being, those are pathCond, stCfg, and startTime; which 
+        -- don't really impact anything.
+        comp State {
+                   -- These are not IORefs; so we share by copying  the value; changes won't be copied back
+                     pathCond     = share pathCond
                    , startTime    = share startTime
-                   , runMode      = fresh runMode
+
+                   -- These are shared IORef's; and is shared, so they will be copied back to the parent state
                    , rIncState    = share rIncState
                    , rCInfo       = share rCInfo
                    , rObservables = share rObservables
-                   , rctr         = fresh rctr
-                   , rLambdaLevel = fresh rLambdaLevel
                    , rUsedKinds   = share rUsedKinds
                    , rUsedLbls    = share rUsedLbls
-                   , rinps        = fresh rinps
-                   , rConstraints = fresh rConstraints
-                   , routs        = fresh routs
                    , rtblMap      = share rtblMap
-                   , spgm         = fresh spgm
-                   , rconstMap    = fresh rconstMap
-                   , rexprMap     = fresh rexprMap
                    , rArrayMap    = share rArrayMap
-                   , rFArrayMap   = share rFArrayMap
+                   , rAICache     = share rAICache
                    , rUIMap       = share rUIMap
                    , rUserFuncs   = share rUserFuncs
                    , rCgMap       = share rCgMap
@@ -85,8 +89,19 @@ inSubState inState comp = do
                    , rSMTOptions  = share rSMTOptions
                    , rOptGoals    = share rOptGoals
                    , rAsserts     = share rAsserts
+
+                   -- Everything else is fresh in the substate; i.e., will not copy back
+                   , stCfg        = fresh stCfg
+                   , runMode      = fresh runMode
+                   , rctr         = fresh rctr
+                   , rLambdaLevel = fresh rLambdaLevel
+                   , rinps        = fresh rinps
+                   , rConstraints = fresh rConstraints
+                   , routs        = fresh routs
+                   , spgm         = fresh spgm
+                   , rconstMap    = fresh rconstMap
+                   , rexprMap     = fresh rexprMap
                    , rSVCache     = fresh rSVCache
-                   , rAICache     = fresh rAICache
                    , rQueryState  = fresh rQueryState
                    }
 
