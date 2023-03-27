@@ -33,7 +33,7 @@ tests = testGroup "Basics.ModelValidate" [
              goldenCapturedIO "validate_1" $ t  satWith    t1
            , goldenCapturedIO "validate_2" $ t  satWith    t2
            , goldenCapturedIO "validate_3" $ t  satWith    t3
-           , goldenCapturedIO "validate_4" $ t  proveWith  t3
+           , goldenCapturedIO "validate_4" $ t  proveWith  (t3 >> pure sTrue)
            , goldenCapturedIO "validate_5" $ t  satWith    t4
            , goldenCapturedIO "validate_6" $ t  proveWith  t4
            , goldenCapturedIO "validate_7" $ tE satWith    t5
