@@ -72,12 +72,12 @@ Picking the SMT solver to use
 The SBV library uses third-party SMT solvers via the standard [SMT-Lib interface](http://smtlib.cs.uiowa.edu/). The following solvers
 are supported:
 
-  - [ABC](http://www.eecs.berkeley.edu/~alanmi/abc/) from University of Berkeley
+  - [ABC](http://www.eecs.berkeley.edu/~alanmi/abc) from University of Berkeley
   - [Boolector](https://boolector.github.io) from Johannes Kepler University
   - [Bitwuzla](https://bitwuzla.github.io) from Stanford University
-  - [CVC4](http://cvc4.github.io/) and [CVC5](http://cvc5.github.io/) from Stanford University and the University of Iowa
-  - [DReal](http://dreal.github.com) from CMU
-  - [MathSAT](http://mathsat.fbk.eu/) from FBK and DISI-University of Trento
+  - [CVC4](http://cvc4.github.io) and [CVC5](http://cvc5.github.io) from Stanford University and the University of Iowa
+  - [DReal](https://dreal.github.io) from CMU
+  - [MathSAT](http://mathsat.fbk.eu) from FBK and DISI-University of Trento
   - [Yices](http://yices.csl.sri.com) from SRI
   - [Z3](http://github.com/Z3Prover/z3/wiki) from Microsoft
  
