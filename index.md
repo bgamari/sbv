@@ -73,8 +73,8 @@ The SBV library uses third-party SMT solvers via the standard [SMT-Lib interface
 are supported:
 
   - [ABC](http://www.eecs.berkeley.edu/~alanmi/abc/) from University of Berkeley
-  - [Boolector](http://fmv.jku.at/boolector/) from Johannes Kepler University
-  - [Bitwuzla](http://bitwuzla.github.io/) from Stanford University
+  - [Boolector](https://boolector.github.io) from Johannes Kepler University
+  - [Bitwuzla](https://bitwuzla.github.io) from Stanford University
   - [CVC4](http://cvc4.github.io/) and [CVC5](http://cvc5.github.io/) from Stanford University and the University of Iowa
   - [DReal](http://dreal.github.com) from CMU
   - [MathSAT](http://mathsat.fbk.eu/) from FBK and DISI-University of Trento
