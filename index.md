@@ -78,6 +78,7 @@ are supported:
   - [CVC4](http://cvc4.github.io) and [CVC5](http://cvc5.github.io) from Stanford University and the University of Iowa
   - [DReal](https://dreal.github.io) from CMU
   - [MathSAT](http://mathsat.fbk.eu) from FBK and DISI-University of Trento
+  - [OpenSMT](https://verify.inf.usi.ch/opensmt) from Università della Svizzera italiana 
   - [Yices](http://yices.csl.sri.com) from SRI
   - [Z3](http://github.com/Z3Prover/z3/wiki) from Microsoft
  
