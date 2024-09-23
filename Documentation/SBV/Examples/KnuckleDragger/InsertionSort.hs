@@ -62,15 +62,15 @@ correctness = runKDWith cvc5 $ do
 
     insertIntoNonDecreasing2 <- axiom "insertIntoNonDecreasing2"
           (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .>  x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
-          -- []
+          -- [induct (\xs e -> nonDecreasing (insert e xs))]
 
     insertIntoNonDecreasing3 <- lemmaWith z3 "insertIntoNonDecreasing3"
           (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing xs .== nonDecreasing (insert e xs))
-          [induct (\e -> nonDecreasing . insert e), insertIntoNonDecreasing1, insertIntoNonDecreasing2]
+          [induct (\xs e -> nonDecreasing (insert e xs)), insertIntoNonDecreasing1, insertIntoNonDecreasing2]
 
     nonDecreasingInsert <- lemma "nonDecreasingInsert"
                (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing xs .== nonDecreasing (insert e xs))
-               [induct (\e -> nonDecreasing . insert e), insertIntoNonDecreasing3]
+               [induct (\xs e -> nonDecreasing (insert e xs)), insertIntoNonDecreasing3]
 
     lemma "insertionSortCorrect"
           (\(Forall @"l" l) -> nonDecreasing (insertionSort l))
