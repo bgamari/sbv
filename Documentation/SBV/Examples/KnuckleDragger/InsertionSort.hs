@@ -45,8 +45,8 @@ nonDecreasing = smtFunction "nonDecreasing" $ \l ->  null l .|| null (tail l)
 
 -- | The default settings for z3 have trouble running this proof out-of-the-box.
 -- We have to pass auto_config=false to z3!
-z3NoAutoConfig :: KDConfig
-z3NoAutoConfig = z3KD{kdExtraSolverArgs = ["auto_config=false"]}
+z3NoAutoConfig :: SMTConfig
+z3NoAutoConfig = z3{extraArgs = ["auto_config=false"]}
 
 -- | Correctness of insertion-sort.
 --
@@ -54,7 +54,7 @@ z3NoAutoConfig = z3KD{kdExtraSolverArgs = ["auto_config=false"]}
 --
 -- >>> correctness
 correctness :: IO Proof
-correctness = runKDWith cvc5KD $ do
+correctness = runKDWith cvc5 $ do
 
     insertIntoNonDecreasing1 <- lemma "insertIntoNonDecreasing1"
           (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .<= x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
@@ -64,7 +64,7 @@ correctness = runKDWith cvc5KD $ do
           (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .>  x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
           -- []
 
-    insertIntoNonDecreasing3 <- lemmaWith z3KD "insertIntoNonDecreasing3"
+    insertIntoNonDecreasing3 <- lemmaWith z3 "insertIntoNonDecreasing3"
           (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing xs .== nonDecreasing (insert e xs))
           [induct (\e -> nonDecreasing . insert e), insertIntoNonDecreasing1, insertIntoNonDecreasing2]
 
