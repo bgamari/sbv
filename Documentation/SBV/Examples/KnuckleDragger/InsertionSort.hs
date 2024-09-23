@@ -56,43 +56,25 @@ z3NoAutoConfig = z3KD{kdExtraSolverArgs = ["auto_config=false"]}
 correctness :: IO Proof
 correctness = runKDWith cvc5KD $ do
 
-    -- helper: tail of nonDecreasing is nonDecreasing
-    tlNonDec <- lemma "tailNonDec"
-                      (\(Forall @"x" (x :: SInteger)) (Forall @"xs" xs) -> nonDecreasing (x .: xs) .=> nonDecreasing xs)
-                      []
-
-    -- helper: inserting into a non-decreasing list leaves it non-decreasing. Insertij
-    insertIntoNonDecreasing1 <- chainLemma "insertIntoNonDecreasing1"
+    insertIntoNonDecreasing1 <- lemma "insertIntoNonDecreasing1"
           (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .<= x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
-          (\e x xs -> [ e .<= x .=> nonDecreasing (insert e (x .: xs))
-                      , e .<= x .=> nonDecreasing (e .: x .: xs)
-                      ])
           []
 
-    insertIntoNonDecreasing2 <- chainLemma "insertIntoNonDecreasing2"
-          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .> x  .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
-          (\e x xs -> [ e .> x .=> nonDecreasing (insert e (x .: xs))
-                      , e .> x .=> nonDecreasing (x .: insert e xs)
-                      , e .> x .=> nonDecreasing (insert e xs)
-                      , e .> x .=> nonDecreasing xs
-                      ])
-          [induct (\e x -> nonDecreasing . insert e . (x .:)), tlNonDec, sorry]
+    insertIntoNonDecreasing2 <- axiom "insertIntoNonDecreasing2"
+          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .>  x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
+          -- []
 
-    insertIntoNonDecreasing <- lemma "insertIntoNonDecreasing"
-          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
-          [insertIntoNonDecreasing1, insertIntoNonDecreasing2, sorry]
+    insertIntoNonDecreasing3 <- lemmaWith z3KD "insertIntoNonDecreasing3"
+          (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing xs .== nonDecreasing (insert e xs))
+          [induct (\e -> nonDecreasing . insert e), insertIntoNonDecreasing1, insertIntoNonDecreasing2]
 
     nonDecreasingInsert <- lemma "nonDecreasingInsert"
-               (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing (insert e xs) .== nonDecreasing xs)
-               [induct nonDecreasing]
+               (\(Forall @"e" e) (Forall @"xs" xs) -> nonDecreasing xs .== nonDecreasing (insert e xs))
+               [induct (\e -> nonDecreasing . insert e), insertIntoNonDecreasing3]
 
-    chainLemma "insertionSortCorrect"
-               (\(Forall @"l" l) -> nonDecreasing (insertionSort l))
-               (\x xs -> [ nonDecreasing (insertionSort (x .: xs))
-                         , nonDecreasing (insert x (insertionSort xs))
-                         , nonDecreasing (insertionSort xs)
-                         ])
-               [induct (nonDecreasing . insertionSort), nonDecreasingInsert, insertIntoNonDecreasing]
+    lemma "insertionSortCorrect"
+          (\(Forall @"l" l) -> nonDecreasing (insertionSort l))
+          [induct (nonDecreasing . insertionSort), nonDecreasingInsert]
 {-
     -- helper: cons isn't null
     consNotNull <- lemma "consNotNull"
@@ -104,13 +86,6 @@ correctness = runKDWith cvc5KD $ do
                       (\(Forall @"x" (x :: SInteger)) (Forall @"xs" xs) -> nonDecreasing (x .: xs) .=> nonDecreasing xs)
                       []
 
-    -- helper: inserting into a non-decreasing list leaves it non-decreasing. Insertij
-    insertIntoNonDecreasing1 <- chainLemma "insertIntoNonDecreasing1"
-          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .<= x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
-          (\e x xs -> [ e .<= x .=> nonDecreasing (insert e (x .: xs))
-                      , e .<= x .=> nonDecreasing (e .: x .: xs)
-                      ])
-          []
 
     insertIntoNonDecreasing2 <- chainLemma "insertIntoNonDecreasing2"
           (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .> x  .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
@@ -132,4 +107,32 @@ correctness = runKDWith cvc5KD $ do
                          , nonDecreasing (insertionSort xs)
                          ])
                [induct (nonDecreasing . insertionSort), consNotNull, insertIntoNonDecreasing]
+-}
+{-
+    -- helper: tail of nonDecreasing is nonDecreasing
+    tlNonDec <- lemma "tailNonDec"
+                      (\(Forall @"x" (x :: SInteger)) (Forall @"xs" xs) -> nonDecreasing (x .: xs) .=> nonDecreasing xs)
+                      []
+
+    -- helper: inserting into a non-decreasing list leaves it non-decreasing. Insertij
+    insertIntoNonDecreasing1 <- chainLemma "insertIntoNonDecreasing1"
+          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .<= x .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
+          (\e x xs -> [ e .<= x .=> nonDecreasing (insert e (x .: xs))
+                      , e .<= x .=> nonDecreasing (e .: x .: xs)
+                      ])
+          []
+
+    insertIntoNonDecreasing2 <- chainLemma "insertIntoNonDecreasing2"
+          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> e .> x  .=> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
+          (\e x xs -> [ e .> x .=> nonDecreasing (insert e (x .: xs))
+                      , e .> x .=> nonDecreasing (x .: insert e xs)
+                      , e .> x .=> nonDecreasing (insert e xs)
+                      , e .> x .=> nonDecreasing xs
+                      ])
+          [induct (\e x -> nonDecreasing . insert e . (x .:)), tlNonDec ]
+
+    insertIntoNonDecreasing <- lemma "insertIntoNonDecreasing"
+          (\(Forall @"e" e) (Forall @"x" x) (Forall @"xs" xs) -> nonDecreasing (x .: xs) .== nonDecreasing (insert e (x .: xs)))
+          [insertIntoNonDecreasing1, insertIntoNonDecreasing2, sorry]
+
 -}
